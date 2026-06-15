@@ -37,7 +37,7 @@ const handleGetRecentActivity = async (req, res) => {
           let calculatedAmount = 0;
           
           if (isPayer) {
-            calculatedAmount = exp.totalAmount;
+            calculatedAmount = exp.totalAmount - (item.price / item.assignedTo.length);
           } else if (isParticipant) {
             calculatedAmount = userItems.reduce((sum, item) => sum + (item.price / item.assignedTo.length), 0);
           }

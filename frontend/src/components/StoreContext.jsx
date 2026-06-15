@@ -6,7 +6,7 @@ import { toast } from 'react-toastify';
 export const StoreContext = createContext(null);
 
 export default function StoreContextProvider({ children }) {
-  const url = "http://localhost:4000";
+  const url = "https://smart-split-o5px.onrender.com/";
   const [activePage, setActivePage] = useState('landingpage');
   const [token, setToken] = useState('');
   const [user, setUser] = useState({

@@ -147,108 +147,106 @@ const handleGetGroups = async (req, res) => {
   }
 };
 
-
-
 const handleAddExpense = async (req, res) => {
-  try {
-    const { fixedGroupId } = req.params;
-    const { description, totalAmount, paidBy, items, userId } = req.body;
+  try {
+    const { fixedGroupId } = req.params;
+    const { description, totalAmount, paidBy, items, userId } = req.body;
 
-    if (!description || !totalAmount || !items || items.length === 0) {
-      return res.status(400).json({ success: false, message: "Invalid expense data" });
-    }
+    if (!description || !totalAmount || !items || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Invalid expense data" });
+    }
 
+    const group = await Group.findById(fixedGroupId);
+    if (!group) return res.status(404).json({ success: false, message: "Group not found" });
 
-    await User.updateOne(
-      { _id: paidBy },
-      { $inc: { balance: -parseFloat(totalAmount) } }
-    );
+    await User.findByIdAndUpdate(paidBy, {
+      $inc: { balance: -parseFloat(totalAmount) }
+    });
 
+    const payerId = new mongoose.Types.ObjectId(paidBy);
+    const parsedItems = items.map(item => ({
+      itemName: item.itemName,
+      price: parseFloat(item.price) || 0,
+      assignedTo: item.assignedTo.map(id => new mongoose.Types.ObjectId(id))
+    }));
 
-    const group = await Group.findById(fixedGroupId);
-    if (!group) return res.status(404).json({ success: false, message: "Group not found" });
+    group.expenses.push({
+      description,
+      totalAmount: parseFloat(totalAmount),
+      paidBy: payerId,
+      items: parsedItems
+    });
 
-    const payerId = new mongoose.Types.ObjectId(paidBy);
-    const parsedItems = items.map(item => ({
-      itemName: item.itemName,
-      price: parseFloat(item.price) || 0,
-      assignedTo: item.assignedTo.map(id => new mongoose.Types.ObjectId(id))
-    }));
+    const memberIds = group.members.map(m => m.toString());
+    const debtMatrix = {};
+    memberIds.forEach(m => {
+      debtMatrix[m] = {};
+      memberIds.forEach(target => debtMatrix[m][target] = 0);
+    });
 
-    group.expenses.push({
-      description,
-      totalAmount: parseFloat(totalAmount),
-      paidBy: payerId,
-      items: parsedItems
-    });
+    group.ledger.forEach(l => {
+      debtMatrix[l.from.toString()][l.to.toString()] += l.amount;
+    });
 
-    const memberIds = group.members.map(m => m.toString());
-    const debtMatrix = {};
-    memberIds.forEach(m => {
-      debtMatrix[m] = {};
-      memberIds.forEach(target => debtMatrix[m][target] = 0);
-    });
+    const pId = paidBy.toString();
+    parsedItems.forEach(item => {
+      const share = item.price / item.assignedTo.length;
+      item.assignedTo.forEach(uid => {
+        const uIdStr = uid.toString();
+        if (uIdStr !== pId) {
+          debtMatrix[uIdStr][pId] += share;
+        }
+      });
+    });
 
-    group.expenses.forEach(exp => {
-      const pId = exp.paidBy.toString();
-      exp.items.forEach(item => {
-        const share = item.price / item.assignedTo.length;
-        item.assignedTo.forEach(uid => {
-          const uIdStr = uid.toString();
-          if (uIdStr !== pId) {
-            debtMatrix[uIdStr][pId] += share;
-          }
-        });
-      });
-    });
+    const newLedger = [];
+    memberIds.forEach((u1, i) => {
+      memberIds.slice(i + 1).forEach(u2 => {
+        const net = debtMatrix[u1][u2] - debtMatrix[u2][u1];
+        if (Math.abs(net) > 0.005) {
+          newLedger.push({
+            from: new mongoose.Types.ObjectId(net > 0 ? u1 : u2),
+            to: new mongoose.Types.ObjectId(net > 0 ? u2 : u1),
+            amount: Math.abs(net)
+          });
+        }
+      });
+    });
 
-    const newLedger = [];
-    memberIds.forEach((u1, i) => {
-      memberIds.slice(i + 1).forEach(u2 => {
-        const net = debtMatrix[u1][u2] - debtMatrix[u2][u1];
-        if (Math.abs(net) > 0.005) {
-          newLedger.push({
-            from: new mongoose.Types.ObjectId(net > 0 ? u1 : u2),
-            to: new mongoose.Types.ObjectId(net > 0 ? u2 : u1),
-            amount: Math.abs(net)
-          });
-        }
-      });
-    });
+    group.ledger = newLedger;
+    
+    const userBalances = {};
+    memberIds.forEach(id => userBalances[id] = { owedToMe: 0, iOwe: 0 });
 
-    group.ledger = newLedger;
-    
-    const userBalances = {};
-    memberIds.forEach(id => userBalances[id] = { owedToMe: 0, iOwe: 0 });
+    newLedger.forEach(txn => {
+      userBalances[txn.from.toString()].iOwe += txn.amount;
+      userBalances[txn.to.toString()].owedToMe += txn.amount;
+    });
 
-    newLedger.forEach(txn => {
-      userBalances[txn.from.toString()].iOwe += txn.amount;
-      userBalances[txn.to.toString()].owedToMe += txn.amount;
-    });
+    group.balances = Object.keys(userBalances).map(uId => ({
+      user: new mongoose.Types.ObjectId(uId),
+      ...userBalances[uId]
+    }));
 
-    group.balances = Object.keys(userBalances).map(uId => ({
-      user: new mongoose.Types.ObjectId(uId),
-      ...userBalances[uId]
-    }));
+    await group.save();
 
-    await group.save();
+    for (const uId of memberIds) {
+      await User.findByIdAndUpdate(uId, {
+        owedToMe: userBalances[uId].owedToMe,
+        iOwe: userBalances[uId].iOwe
+      });
+    }
 
-    for (const uId of memberIds) {
-      await User.findByIdAndUpdate(uId, {
-        owedToMe: userBalances[uId].owedToMe,
-        iOwe: userBalances[uId].iOwe
-      });
-    }
-
-    return res.status(200).json({ 
-      success: true, 
-      group,
-      you: await User.findById(userId)
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
+    return res.status(200).json({ 
+      success: true, 
+      group,
+      you: await User.findById(userId)
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };
+
 const handleMemberUpdates = async (req, res) => {
   const { members, groupId } = req.body;
   try {

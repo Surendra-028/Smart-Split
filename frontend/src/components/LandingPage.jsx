@@ -7,8 +7,7 @@ import { jwtDecode } from 'jwt-decode'
 export default function LandingPage() {
   const [isLogin, setIsLogin] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
-  const url = "http://localhost:4000";
-  const { activePage, setActivePage, token, setToken, setUser } = useContext(StoreContext);
+  const { url, activePage, setActivePage, token, setToken, setUser } = useContext(StoreContext);
 
   const [formData, setFormData] = useState({
     name: '',

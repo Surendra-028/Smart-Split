@@ -13,7 +13,7 @@ connectDB();
 
 // uses
 app.use(express.json())
-app.use(cors({ origin : "http://localhost:5173", credentials : true}))
+app.use(cors({ origin : "https://frontend-8pf9.onrender.com", credentials : true}))
 
 //routes
 app.use("/api/user", userRouter)

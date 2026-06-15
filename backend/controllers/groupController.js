@@ -148,16 +148,35 @@ const handleGetGroups = async (req, res) => {
 };
 
 const handleAddExpense = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { fixedGroupId } = req.params;
     const { description, totalAmount, paidBy, items, userId } = req.body;
 
     if (!description || !totalAmount || !items || items.length === 0) {
+      await session.abortTransaction();
       return res.status(400).json({ success: false, message: "Invalid expense data" });
     }
 
-    const group = await Group.findById(fixedGroupId);
-    if (!group) return res.status(404).json({ success: false, message: "Group not found" });
+    const payer = await User.findById(paidBy).session(session);
+    if (!payer) {
+      await session.abortTransaction();
+      return res.status(404).json({ success: false, message: "Payer not found" });
+    }
+
+    await User.updateOne(
+      { _id: paidBy },
+      { $inc: { balance: -parseFloat(totalAmount) } },
+      { session }
+    );
+
+    const group = await Group.findById(fixedGroupId).session(session);
+    if (!group) {
+      await session.abortTransaction();
+      return res.status(404).json({ success: false, message: "Group not found" });
+    }
 
     const payerId = new mongoose.Types.ObjectId(paidBy);
     const parsedItems = items.map(item => ({
@@ -208,7 +227,7 @@ const handleAddExpense = async (req, res) => {
     });
 
     group.ledger = newLedger;
-    
+
     const userBalances = {};
     memberIds.forEach(id => userBalances[id] = { owedToMe: 0, iOwe: 0 });
 
@@ -222,21 +241,33 @@ const handleAddExpense = async (req, res) => {
       ...userBalances[uId]
     }));
 
-    await group.save();
+    await group.save({ session });
 
-    for (const uId of memberIds) {
-      await User.findByIdAndUpdate(uId, {
-        owedToMe: userBalances[uId].owedToMe,
-        iOwe: userBalances[uId].iOwe
-      });
-    }
+    const bulkOps = memberIds.map(uId => ({
+      updateOne: {
+        filter: { _id: uId },
+        update: {
+          $set: {
+            owedToMe: userBalances[uId].owedToMe,
+            iOwe: userBalances[uId].iOwe
+          }
+        }
+      }
+    }));
 
-    return res.status(200).json({ 
-      success: true, 
+    await User.bulkWrite(bulkOps, { session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      success: true,
       group,
       you: await User.findById(userId)
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     return res.status(500).json({ success: false, message: error.message });
   }
 };

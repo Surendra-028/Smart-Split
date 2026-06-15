@@ -164,7 +164,6 @@ const handleAddExpense = async (req, res) => {
       { $inc: { balance: -parseFloat(totalAmount) } }
     );
 
-    await User.save();
 
     const group = await Group.findById(fixedGroupId);
     if (!group) return res.status(404).json({ success: false, message: "Group not found" });

@@ -362,8 +362,12 @@ const handleSettlement = async (req, res) => {
   const payAmount = parseFloat(amount);
 
   try {
-    const sender = await User.findOne({ email : senderEmail });
-    const receiver = await User.findOne({ email : targetEmail });
+    const sender = await User.findOne({ email: senderEmail });
+    const receiver = await User.findOne({ email: targetEmail });
+
+    if (!sender || !receiver) {
+      return res.status(404).json({ success: false, message: "Sender or receiver not found" });
+    }
 
     const senderId = sender._id;
     const receiverId = receiver._id;
@@ -380,34 +384,78 @@ const handleSettlement = async (req, res) => {
       "ledger": { $elemMatch: { from: senderId, to: receiverId } }
     });
 
-    await Promise.all(groups.map(async (group) => {
-      await Group.updateOne(
-        { _id: group._id },
-        {
-          $inc: {
-            "ledger.$[txn].amount": -payAmount,
-            "balances.$[payer].iOwe": -payAmount,
-            "balances.$[receiver].owedToMe": -payAmount
-          }
-        },
-        {
-          arrayFilters: [
-            { "txn.from": senderId, "txn.to": receiverId },
-            { "payer.user": senderId },
-            { "receiver.user": receiverId }
-          ]
+    for (const group of groups) {
+      group.ledger.forEach(txn => {
+        if (txn.from.toString() === senderId.toString() && txn.to.toString() === receiverId.toString()) {
+          txn.amount -= payAmount;
         }
-      );
-    }));
+      });
 
-    await User.updateOne({ _id: senderId }, { $inc: { balance: -payAmount, iOwe: -payAmount } });
-    await User.updateOne({ _id: receiverId }, { $inc: { balance: payAmount, owedToMe: -payAmount } });
+      group.ledger = group.ledger.filter(txn => txn.amount > 0.01);
 
-    const updatedUser = await User.findOne({email : senderEmail})
+      const memberIds = group.members.map(m => m.toString());
+      const userBalances = {};
+      memberIds.forEach(id => userBalances[id] = { owedToMe: 0, iOwe: 0 });
 
-    return res.json({ success: true, message: "Payment recorded", sender : updatedUser });
+      group.ledger.forEach(txn => {
+        if (userBalances[txn.from.toString()]) {
+          userBalances[txn.from.toString()].iOwe += txn.amount;
+        }
+        if (userBalances[txn.to.toString()]) {
+          userBalances[txn.to.toString()].owedToMe += txn.amount;
+        }
+      });
+
+      group.balances = Object.keys(userBalances).map(uId => ({
+        user: new mongoose.Types.ObjectId(uId),
+        ...userBalances[uId]
+      }));
+
+      await group.save();
+    }
+
+    const userGroups = await Group.find({ members: { $in: [senderId, receiverId] } });
+    
+    const recalculateUserTotals = async (userId) => {
+      let totalIOwe = 0;
+      let totalOwedToMe = 0;
+
+      userGroups.forEach(group => {
+        const userBal = group.balances.find(b => b.user.toString() === userId.toString());
+        if (userBal) {
+          totalIOwe += userBal.iOwe;
+          totalOwedToMe += userBal.owedToMe;
+        }
+      });
+
+      return { iOwe: totalIOwe, owedToMe: totalOwedToMe };
+    };
+
+    const senderTotals = await recalculateUserTotals(senderId);
+    const receiverTotals = await recalculateUserTotals(receiverId);
+
+    const updatedSender = await User.findByIdAndUpdate(
+      senderId,
+      { 
+        balance: senderTotals.owedToMe - senderTotals.iOwe,
+        iOwe: senderTotals.iOwe,
+        owedToMe: senderTotals.owedToMe
+      },
+      { new: true }
+    );
+
+    await User.findByIdAndUpdate(
+      receiverId,
+      { 
+        balance: receiverTotals.owedToMe - receiverTotals.iOwe,
+        iOwe: receiverTotals.iOwe,
+        owedToMe: receiverTotals.owedToMe
+      }
+    );
+
+    return res.json({ success: true, message: "Payment recorded", sender: updatedSender });
   } catch (error) {
-    return res.json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 module.exports = {

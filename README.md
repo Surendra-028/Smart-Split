@@ -6,7 +6,7 @@
 
 ## 🚀 Features
 
-* **GenAI-Powered Digitization:** Instantly scan and convert receipt images into structured expense data, eliminating tedious manual entry.
+* **GenAI-Powered Digitization:** Instantly scan and convert receipt images into structured expense data, eliminating manual entry.
 * **Secure Authentication:** Built with robust security protocols using **BCrypt** for password hashing and **JSON Web Tokens (JWT)** for safe, authenticated user sessions.
 * **Automated Notification Engine:** Integrated **Nodemailer** to enhance financial accountability through automated email payment reminders and transaction updates.
 * **Scalable Group Architecture:** Architected isolated, multi-tenant group environments featuring granular transaction histories and real-time activity feeds for professional-grade accounting.
@@ -35,65 +35,90 @@ Smart-Split/
 │   ├── middleware/      # Auth & error-handling middleware
 │   └── utils/           # Nodemailer & helper services
 └── README.md
+```
 
+---
 
+## ⚙️ Getting Started & Installation
 
-⚙️ Getting Started & Installation
 Follow these steps to set up and run the project locally on your machine.
 
-Prerequisites
-Node.js and npm installed on your system.
+### Prerequisites
 
-MongoDB Atlas account or local MongoDB instance.
+* Node.js and npm installed on your system.
+* MongoDB Atlas account or local MongoDB instance.
 
-1. Clone the Repository
-Bash
+### 1. Clone the Repository
+
+```bash
 git clone [https://github.com/Surendra-028/Smart-Split.git](https://github.com/Surendra-028/Smart-Split.git)
 cd Smart-Split
-2. Backend Setup
+```
+
+### 2. Backend Setup
+
 Navigate to the server directory, install dependencies, and configure your environment variables:
 
-Bash
+```bash
 cd server
 npm install
-Create a .env file in the server directory and add the following configuration:
+```
 
-Code snippet
+Create a `.env` file in the `server` directory and add the following configuration:
+
+```env
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret_key
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_email_app_password
 GENAI_API_KEY=your_genai_api_key
+```
+
 Start the backend server:
 
-Bash
+```bash
 npm start
-3. Frontend Setup
+```
+
+### 3. Frontend Setup
+
 Open a new terminal window, navigate to the client directory, and install dependencies:
 
-Bash
+```bash
 cd client
 npm install
-Create a .env file in the client directory if required:
+```
 
-Code snippet
+Create a `.env` file in the `client` directory:
+
+```env
 REACT_APP_API_URL=http://localhost:5000
+```
+
 Start the React development server:
 
-Bash
+```bash
 npm start
-💡 Usage
-Register a new account or log in securely using your credentials.
+```
 
-Create or join expense groups with friends or roommates.
+---
 
-Upload receipt images to let the GenAI engine automatically parse and split bills.
+## 💡 Usage
 
-Track balances, settle dues, and trigger automated email reminders via Nodemailer.
+1. Register a new account or log in securely.
+2. Create or join expense groups with friends or roommates.
+3. Upload receipt images to let the GenAI engine automatically parse and split bills.
+4. Track balances, settle dues, and trigger automated email reminders via Nodemailer.
 
-🤝 Contributing
-Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
+---
 
-📝 License
-This project is open-source and available under the MIT License.
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/Surendra-028/Smart-Split/issues).
+
+---
+
+## 📝 License
+
+This project is open-source and available under the [MIT License](LICENSE).

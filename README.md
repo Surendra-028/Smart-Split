@@ -3,6 +3,9 @@
 > An intelligent full-stack financial platform designed to simplify shared-bill management by automating itemized expense distribution, tracking individual contributions, and providing transparent real-time settlement ledgers.
 
 ---
+> **Live Demo Links:**
+> * **Frontend:** [https://frontend-8pf9.onrender.com](https://frontend-8pf9.onrender.com)
+> * **Backend API:** [https://smart-split-o5px.onrender.com](https://smart-split-o5px.onrender.com)
 
 ## 🚀 Features
 
